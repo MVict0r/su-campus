@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Интерактивная карта кампуса</title>
+    <link rel="stylesheet" href="./src/styles.css" />
+    <script type="module" src="./src/app.js"></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Список корпусов">
+        <div class="brand">
+          <img class="brand__logo" src="./assets/logo.svg" alt="Логотип университета" />
+          <h1>Карта кампуса</h1>
+        </div>
+
+        <div class="sidebar-tools">
+          <input class="input" id="buildingSearch" type="search" placeholder="Найти корпус" autocomplete="off" />
+        </div>
+
+        <div class="building-list" id="buildingList"></div>
+      </aside>
+
+      <main class="main-map">
+        <section class="map-panel" aria-label="SVG-карта кампуса">
+          <div class="map-toolbar" aria-label="Масштаб карты">
+            <button class="icon-button" id="zoomIn" type="button" title="Приблизить" aria-label="Приблизить">+</button>
+            <button class="icon-button" id="zoomOut" type="button" title="Отдалить" aria-label="Отдалить">−</button>
+            <button class="icon-button" id="resetMap" type="button" title="Сбросить карту" aria-label="Сбросить карту">⌂</button>
+          </div>
+
+          <div class="map-viewport" id="mapViewport">
+            <div class="map-content" id="mapContent"></div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div class="map-tooltip" id="mapTooltip" role="status"></div>
+  </body>
+</html>
