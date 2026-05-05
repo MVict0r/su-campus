@@ -17,12 +17,14 @@ const floor = parsed?.floors.find((item) => item.id === requestedFloorId) || par
 const rooms = floor ? parsed.rooms.filter((room) => room.floorId === floor.id) : [];
 const FLOOR_PLAN_ASSETS = {
   gmk: {
+    basement: "./assets/floors/gmk-basement.svg",
     "floor-1": "./assets/floors/gmk-1.svg",
     "floor-2": "./assets/floors/gmk-2.svg",
+    "floor-3": "./assets/floors/gmk-3.svg",
   },
 };
 const floorPlanAsset = FLOOR_PLAN_ASSETS[buildingId]?.[floor?.id] || "";
-const roomsByNumber = new Map(rooms.map((room) => [normalizeRoomNumber(room.room), room]));
+const roomsByNumber = buildRoomsByNumber(rooms);
 
 const PLAN_OWNER_BY_COLOR = {
   "#BEDCFF": { code: "ГМК", label: "ГМК", className: "owner-gmk" },
@@ -41,6 +43,8 @@ const planState = {
   lastX: 0,
   lastY: 0,
   selectedRoom: "",
+  fullViewBox: null,
+  viewBox: null,
 };
 
 if (!building) {
@@ -231,6 +235,24 @@ function normalizeRoomNumber(value) {
     .replace(/[.,]/g, "");
 }
 
+function getRoomAliases(room) {
+  const raw = String(room.room ?? "");
+  const aliases = new Set([normalizeRoomNumber(raw)]);
+  raw.split(/[\\/]/).forEach((part) => {
+    const normalized = normalizeRoomNumber(part);
+    if (normalized) aliases.add(normalized);
+  });
+  return aliases;
+}
+
+function buildRoomsByNumber(roomList) {
+  const map = new Map();
+  roomList.forEach((room) => {
+    getRoomAliases(room).forEach((alias) => map.set(alias, room));
+  });
+  return map;
+}
+
 function isRoomGroupId(id) {
   return /^\d+[a-zа-я]?$/i.test(id) || /^\d+-\d+$/.test(id);
 }
@@ -318,10 +340,11 @@ async function initInteractiveFloorPlan() {
   svg.setAttribute("aria-label", `${building.name}, ${floor.label}`);
   svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
   cropSvgToPlan(svg);
+  setInitialFloorViewBox(svg);
 
   const roomGroups = [...svg.querySelectorAll("#kab g[id]")].filter((group) => isRoomGroupId(group.id));
   roomGroups.forEach((group) => prepareRoomGroup(group));
-  attachFloorPlanControls(viewport, content);
+  attachFloorPlanControls(viewport);
   attachRoomChipControls();
   resetFloorPlan();
 }
@@ -390,7 +413,7 @@ function prepareRoomGroup(group) {
   });
 }
 
-function attachFloorPlanControls(viewport, content) {
+function attachFloorPlanControls(viewport) {
   document.querySelector("#floorZoomIn")?.addEventListener("click", () => zoomFloorPlan(1.18));
   document.querySelector("#floorZoomOut")?.addEventListener("click", () => zoomFloorPlan(0.84));
   document.querySelector("#floorReset")?.addEventListener("click", resetFloorPlan);
@@ -416,17 +439,22 @@ function attachFloorPlanControls(viewport, content) {
 
   viewport.addEventListener("pointermove", (event) => {
     if (!planState.dragging) return;
+    const svg = getFloorSvg();
+    const viewBox = planState.viewBox;
+    if (!svg || !viewBox) return;
+
     const dx = event.clientX - planState.lastX;
     const dy = event.clientY - planState.lastY;
     if (Math.hypot(event.clientX - planState.startX, event.clientY - planState.startY) > 4) {
       planState.moved = true;
       hideRoomTooltip();
     }
-    planState.x += dx;
-    planState.y += dy;
+    const rect = viewport.getBoundingClientRect();
+    viewBox.x -= (dx * viewBox.width) / rect.width;
+    viewBox.y -= (dy * viewBox.height) / rect.height;
     planState.lastX = event.clientX;
     planState.lastY = event.clientY;
-    applyFloorTransform(content);
+    applyFloorViewBox(svg);
   });
 
   viewport.addEventListener("pointerup", (event) => {
@@ -449,33 +477,77 @@ function attachRoomChipControls() {
   });
 }
 
-function applyFloorTransform(content = document.querySelector("#floorPlanContent")) {
-  if (!content) return;
-  content.style.transform = `translate(${planState.x}px, ${planState.y}px) scale(${planState.scale})`;
+function getFloorSvg() {
+  return document.querySelector("#floorPlanContent svg");
+}
+
+function getSvgViewBox(svg) {
+  const viewBox = svg.viewBox.baseVal;
+  return {
+    x: viewBox.x,
+    y: viewBox.y,
+    width: viewBox.width,
+    height: viewBox.height,
+  };
+}
+
+function setInitialFloorViewBox(svg) {
+  planState.fullViewBox = getSvgViewBox(svg);
+  planState.viewBox = { ...planState.fullViewBox };
+  planState.scale = 1;
+  applyFloorViewBox(svg);
+}
+
+function applyFloorViewBox(svg = getFloorSvg()) {
+  if (!svg || !planState.viewBox) return;
+  const { x, y, width, height } = planState.viewBox;
+  svg.setAttribute("viewBox", `${x} ${y} ${width} ${height}`);
+}
+
+function clientPointToSvg(svg, clientX, clientY) {
+  const point = svg.createSVGPoint();
+  point.x = clientX;
+  point.y = clientY;
+  const matrix = svg.getScreenCTM();
+  if (!matrix) {
+    const viewBox = planState.viewBox || getSvgViewBox(svg);
+    return { x: viewBox.x + viewBox.width / 2, y: viewBox.y + viewBox.height / 2 };
+  }
+  return point.matrixTransform(matrix.inverse());
 }
 
 function zoomFloorPlan(factor, clientX, clientY) {
-  const viewport = document.querySelector("#floorPlanViewport");
-  if (!viewport) return;
-  const rect = viewport.getBoundingClientRect();
-  const oldScale = planState.scale;
-  const nextScale = Math.max(0.6, Math.min(5, oldScale * factor));
-  const anchorX = clientX ?? rect.left + rect.width / 2;
-  const anchorY = clientY ?? rect.top + rect.height / 2;
-  const localX = (anchorX - rect.left - planState.x) / oldScale;
-  const localY = (anchorY - rect.top - planState.y) / oldScale;
+  const svg = getFloorSvg();
+  if (!svg || !planState.fullViewBox || !planState.viewBox) return;
 
-  planState.x = anchorX - rect.left - localX * nextScale;
-  planState.y = anchorY - rect.top - localY * nextScale;
+  const oldViewBox = { ...planState.viewBox };
+  const oldScale = planState.scale || 1;
+  const nextScale = Math.max(1, Math.min(8, oldScale * factor));
+  const anchor =
+    clientX == null || clientY == null
+      ? { x: oldViewBox.x + oldViewBox.width / 2, y: oldViewBox.y + oldViewBox.height / 2 }
+      : clientPointToSvg(svg, clientX, clientY);
+  const ratioX = (anchor.x - oldViewBox.x) / oldViewBox.width;
+  const ratioY = (anchor.y - oldViewBox.y) / oldViewBox.height;
+  const nextWidth = planState.fullViewBox.width / nextScale;
+  const nextHeight = planState.fullViewBox.height / nextScale;
+
+  planState.viewBox = {
+    x: anchor.x - ratioX * nextWidth,
+    y: anchor.y - ratioY * nextHeight,
+    width: nextWidth,
+    height: nextHeight,
+  };
   planState.scale = nextScale;
-  applyFloorTransform();
+  applyFloorViewBox(svg);
 }
 
 function resetFloorPlan() {
+  const svg = getFloorSvg();
+  if (!svg || !planState.fullViewBox) return;
   planState.scale = 1;
-  planState.x = 0;
-  planState.y = -100;
-  applyFloorTransform();
+  planState.viewBox = { ...planState.fullViewBox };
+  applyFloorViewBox(svg);
 }
 
 function selectRoom(roomId, center = false) {
@@ -571,27 +643,23 @@ function hideRoomTooltip() {
 }
 
 function centerRoom(roomId) {
-  const viewport = document.querySelector("#floorPlanViewport");
-  const content = document.querySelector("#floorPlanContent");
-  const svg = content?.querySelector("svg");
+  const svg = getFloorSvg();
   const group = document.querySelector(`[data-room-key="${CSS.escape(normalizeRoomNumber(roomId))}"]`);
-  if (!viewport || !content || !svg || !group || typeof group.getBBox !== "function") return;
+  if (!svg || !group || typeof group.getBBox !== "function" || !planState.fullViewBox) return;
 
   const bbox = group.getBBox();
-  const viewBox = svg.viewBox.baseVal;
-  const rect = viewport.getBoundingClientRect();
-  const fittedScale = Math.min(rect.width / viewBox.width, rect.height / viewBox.height);
-  const fittedWidth = viewBox.width * fittedScale;
-  const fittedHeight = viewBox.height * fittedScale;
-  const offsetX = (rect.width - fittedWidth) / 2;
-  const offsetY = (rect.height - fittedHeight) / 2;
-  const targetX = offsetX + (bbox.x + bbox.width / 2 - viewBox.x) * fittedScale;
-  const targetY = offsetY + (bbox.y + bbox.height / 2 - viewBox.y) * fittedScale;
+  const nextScale = Math.max(planState.scale || 1, 2.2);
+  const width = planState.fullViewBox.width / nextScale;
+  const height = planState.fullViewBox.height / nextScale;
 
-  planState.scale = Math.max(planState.scale, 2.2);
-  planState.x = rect.width / 2 - targetX * planState.scale;
-  planState.y = rect.height / 2 - targetY * planState.scale;
-  applyFloorTransform(content);
+  planState.scale = nextScale;
+  planState.viewBox = {
+    x: bbox.x + bbox.width / 2 - width / 2,
+    y: bbox.y + bbox.height / 2 - height / 2,
+    width,
+    height,
+  };
+  applyFloorViewBox(svg);
 }
 
 function renderRoomsSection() {
