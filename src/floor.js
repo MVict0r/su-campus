@@ -22,6 +22,10 @@ const FLOOR_PLAN_ASSETS = {
     "floor-2": "./assets/floors/gmk-2.svg",
     "floor-3": "./assets/floors/gmk-3.svg",
   },
+  gyk: {
+    "floor-1": "./assets/floors/gyk-1.svg",
+    "floor-2": "./assets/floors/gyk-2.svg",
+  },
 };
 const floorPlanAsset = FLOOR_PLAN_ASSETS[buildingId]?.[floor?.id] || "";
 const roomsByNumber = buildRoomsByNumber(rooms);
@@ -87,7 +91,7 @@ function renderPage() {
   `;
 
   if (parsed) {
-    attachSearch();
+    attachRoomFilters();
     if (floorPlanAsset) {
       initInteractiveFloorPlan();
     }
@@ -257,6 +261,11 @@ function isRoomGroupId(id) {
   return /^\d+[a-zа-я]?$/i.test(id) || /^\d+-\d+$/.test(id);
 }
 
+function getRoomGroups(svg) {
+  const scope = svg.querySelector("#kab") || svg;
+  return [...scope.querySelectorAll("g[id]")].filter((group) => isRoomGroupId(group.id));
+}
+
 function getRoomData(roomId) {
   return roomsByNumber.get(normalizeRoomNumber(roomId)) || null;
 }
@@ -342,20 +351,27 @@ async function initInteractiveFloorPlan() {
   cropSvgToPlan(svg);
   setInitialFloorViewBox(svg);
 
-  const roomGroups = [...svg.querySelectorAll("#kab g[id]")].filter((group) => isRoomGroupId(group.id));
+  const roomGroups = getRoomGroups(svg);
   roomGroups.forEach((group) => prepareRoomGroup(group));
+  renderSchemeRoomChips(roomGroups.map((group) => group.id));
   attachFloorPlanControls(viewport);
   attachRoomChipControls();
   resetFloorPlan();
 }
 
 function cropSvgToPlan(svg) {
-  const groups = ["#lobby", "#stairs", "#arrows", "#kab"]
+  const groups = [
+    ...["#lobby", "#stairs", "#arrows", "#kab"]
     .map((selector) => svg.querySelector(selector))
-    .filter(Boolean);
+      .filter(Boolean),
+    ...getRoomGroups(svg),
+  ];
   if (!groups.length) return;
 
-  const boxes = groups.map((group) => group.getBBox());
+  const boxes = groups
+    .map((group) => group.getBBox())
+    .filter((box) => box.width > 0 && box.height > 0);
+  if (!boxes.length) return;
   const minX = Math.min(...boxes.map((box) => box.x));
   const minY = Math.min(...boxes.map((box) => box.y));
   const maxX = Math.max(...boxes.map((box) => box.x + box.width));
@@ -469,6 +485,22 @@ function attachFloorPlanControls(viewport) {
     planState.dragging = false;
     planState.moved = false;
   });
+}
+
+function renderSchemeRoomChips(roomIds) {
+  const chips = document.querySelector(".room-chips--interactive");
+  if (!chips || rooms.length || !roomIds.length) return;
+
+  const sortedRoomIds = [...roomIds].sort((a, b) => a.localeCompare(b, "ru", { numeric: true }));
+  chips.innerHTML = sortedRoomIds
+    .map(
+      (roomId) => `
+        <button class="room-chip" type="button" data-room-chip="${escapeHtml(roomId)}">
+          ${escapeHtml(roomId)}
+        </button>
+      `,
+    )
+    .join("");
 }
 
 function attachRoomChipControls() {
@@ -662,12 +694,35 @@ function centerRoom(roomId) {
   applyFloorViewBox(svg);
 }
 
+function uniqueRoomValues(field) {
+  return [...new Set(rooms.map((room) => room[field]).filter(Boolean))].sort((a, b) =>
+    String(a).localeCompare(String(b), "ru", { numeric: true }),
+  );
+}
+
+function renderFilterOptions(values) {
+  return values.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join("");
+}
+
 function renderRoomsSection() {
+  const purposes = uniqueRoomValues("purpose");
+  const departments = uniqueRoomValues("department");
+
   return `
     <section class="section">
       <div class="data-toolbar">
         <h2>Аудитории этажа</h2>
-        <input class="input" id="roomSearch" type="search" placeholder="Найти аудиторию на этаже" autocomplete="off" />
+        <div class="topbar__actions">
+          <select class="input" id="purposeFilter" aria-label="Фильтр по назначению аудитории">
+            <option value="">Все назначения</option>
+            ${renderFilterOptions(purposes)}
+          </select>
+          <select class="input" id="departmentFilter" aria-label="Фильтр по кафедре">
+            <option value="">Все кафедры</option>
+            ${renderFilterOptions(departments)}
+          </select>
+          <input class="input" id="roomSearch" type="search" placeholder="Найти аудиторию на этаже" autocomplete="off" />
+        </div>
       </div>
       ${renderRoomsTable(rooms)}
     </section>
@@ -686,11 +741,29 @@ function renderEmptyData() {
   `;
 }
 
-function attachSearch() {
+function attachRoomFilters() {
   const search = document.querySelector("#roomSearch");
+  const purposeFilter = document.querySelector("#purposeFilter");
+  const departmentFilter = document.querySelector("#departmentFilter");
   const tbody = document.querySelector("#roomsTableBody");
-  search.addEventListener("input", () => {
-    const filtered = rooms.filter((room) => roomMatches(room, search.value.trim()));
+
+  if (!search || !purposeFilter || !departmentFilter || !tbody) return;
+
+  function applyFilters() {
+    const query = search.value.trim();
+    const purpose = purposeFilter.value;
+    const department = departmentFilter.value;
+    const filtered = rooms.filter((room) => {
+      const samePurpose = !purpose || room.purpose === purpose;
+      const sameDepartment = !department || room.department === department;
+      return samePurpose && sameDepartment && roomMatches(room, query);
+    });
     tbody.innerHTML = renderRoomRows(filtered);
+  }
+
+  purposeFilter.addEventListener("change", applyFilters);
+  departmentFilter.addEventListener("change", applyFilters);
+  search.addEventListener("input", () => {
+    applyFilters();
   });
 }
