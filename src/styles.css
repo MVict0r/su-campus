@@ -731,26 +731,18 @@ tr:last-child td {
   transition: opacity 120ms ease, stroke 120ms ease, stroke-width 120ms ease;
 }
 
-.floor-room--unassigned .floor-room-surface {
-  fill: #edf7ff;
-  fill-opacity: 0.88;
-  stroke: #536d7e;
-}
-
-.floor-room--unassigned.has-room-data .floor-room-surface {
-  fill: #dceeff;
-}
-
 .floor-room.is-hovered .floor-room-surface,
 .floor-room.is-selected .floor-room-surface,
 .floor-room:focus .floor-room-surface {
   stroke: var(--blue-900);
-  stroke-width: 8;
+  stroke-width: 2.5;
+  vector-effect: non-scaling-stroke;
 }
 
 .floor-room.is-selected .floor-room-surface {
   stroke: var(--accent);
-  stroke-width: 10;
+  stroke-width: 3.5;
+  vector-effect: non-scaling-stroke;
 }
 
 .floor-room.has-room-data .floor-room-surface {

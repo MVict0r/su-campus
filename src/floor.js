@@ -25,6 +25,14 @@ const FLOOR_PLAN_ASSETS = {
   gyk: {
     "floor-1": "./assets/floors/gyk-1.svg",
     "floor-2": "./assets/floors/gyk-2.svg",
+    "floor-3": "./assets/floors/gyk-3.svg",
+    "floor-4": "./assets/floors/gyk-4.svg",
+    "floor-5": "./assets/floors/gyk-5.svg",
+    "floor-6": "./assets/floors/gyk-6.svg",
+    "floor-7": "./assets/floors/gyk-7.svg",
+    "floor-8": "./assets/floors/gyk-8.svg",
+    "floor-9": "./assets/floors/gyk-9.svg",
+    "floor-10": "./assets/floors/gyk-10.svg",
   },
 };
 const floorPlanAsset = FLOOR_PLAN_ASSETS[buildingId]?.[floor?.id] || "";
@@ -258,7 +266,7 @@ function buildRoomsByNumber(roomList) {
 }
 
 function isRoomGroupId(id) {
-  return /^\d+[a-zа-я]?$/i.test(id) || /^\d+-\d+$/.test(id);
+  return /^\d{1,4}[a-zа-я]?$/i.test(id) || /^\d{1,4}-\d{1,4}$/.test(id);
 }
 
 function getRoomGroups(svg) {
@@ -289,19 +297,33 @@ function getOwnerSurfaceElements(group) {
   });
 }
 
+function isStructuralFill(fill) {
+  return !fill || fill === "#000000" || fill === "#1E1E1E" || fill === "#2B2A29";
+}
+
+function elementArea(element) {
+  if (typeof element.getBBox !== "function") return 0;
+  const box = element.getBBox();
+  return Math.max(0, box.width) * Math.max(0, box.height);
+}
+
 function getFallbackSurfaceElements(group) {
   const shapes = [...group.querySelectorAll(":scope > path, :scope > rect, :scope > polygon, :scope > circle, :scope > ellipse")];
-  const filledRoomShape = shapes.find((element) => {
+  const filledRoomShape = shapes
+    .filter((element) => {
     const fill = getElementFillColor(element);
-    return fill && fill !== "#2B2A29" && fill !== "#000000";
-  });
+      return !isStructuralFill(fill);
+    })
+    .sort((a, b) => elementArea(b) - elementArea(a))[0];
   if (filledRoomShape) return [filledRoomShape];
 
-  const closedRoomShape = shapes.find((element) => {
-    const stroke = element.getAttribute("stroke");
-    const d = element.getAttribute("d") || "";
-    return stroke && stroke !== "none" && /z/i.test(d);
-  });
+  const closedRoomShape = shapes
+    .filter((element) => {
+      const stroke = element.getAttribute("stroke");
+      const d = element.getAttribute("d") || "";
+      return stroke && stroke !== "none" && /z/i.test(d);
+    })
+    .sort((a, b) => elementArea(b) - elementArea(a))[0];
   if (closedRoomShape) return [closedRoomShape];
 
   const strokedShape = shapes.find((element) => {
