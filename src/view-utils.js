@@ -2,7 +2,7 @@ import { GMI_DATA } from "./gmi-data.js";
 
 export { GMI_DATA };
 
-const GYK_FLOORS = [
+const TEN_FLOORS_WITH_BASEMENT = [
   { id: "basement", label: "Подвал" },
   ...Array.from({ length: 10 }, (_, index) => {
     const floor = index + 1;
@@ -10,14 +10,14 @@ const GYK_FLOORS = [
   }),
 ];
 
-const BUILDING_OVERRIDES = {
-  gyk: {
-    ...GMI_DATA.buildings.gyk,
-    label: "Главный учебный корпус",
+function emptyBuildingOverride(base, label) {
+  return {
+    ...base,
+    label,
     roomCount: 0,
     areaM2: 0,
     seats: 0,
-    floors: GYK_FLOORS.map((floor) => ({
+    floors: TEN_FLOORS_WITH_BASEMENT.map((floor) => ({
       ...floor,
       sourceLabel: floor.label,
       roomCount: 0,
@@ -25,7 +25,12 @@ const BUILDING_OVERRIDES = {
       seats: 0,
     })),
     rooms: [],
-  },
+  };
+}
+
+const BUILDING_OVERRIDES = {
+  gyk: emptyBuildingOverride(GMI_DATA.buildings.gyk, "Главный учебный корпус"),
+  nk: emptyBuildingOverride(GMI_DATA.buildings.nk, "Нефтяной корпус"),
 };
 
 export function getParsedBuildingData(buildingId) {

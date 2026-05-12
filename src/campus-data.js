@@ -22,9 +22,9 @@ export const BUILDINGS = [
     svgId: "nk",
     number: "5",
     code: "НК",
-    name: "Научный корпус",
-    type: "Учебно-научный корпус",
-    status: "placeholder",
+    name: "Нефтяной корпус",
+    type: "Учебный корпус",
+    status: "partial",
   },
   {
     id: "gmk",

@@ -34,6 +34,19 @@ const FLOOR_PLAN_ASSETS = {
     "floor-9": "./assets/floors/gyk-9.svg",
     "floor-10": "./assets/floors/gyk-10.svg",
   },
+  nk: {
+    basement: "./assets/floors/nk-basement.svg",
+    "floor-1": "./assets/floors/nk-1.svg",
+    "floor-2": "./assets/floors/nk-2.svg",
+    "floor-3": "./assets/floors/nk-3.svg",
+    "floor-4": "./assets/floors/nk-4.svg",
+    "floor-5": "./assets/floors/nk-5.svg",
+    "floor-6": "./assets/floors/nk-6.svg",
+    "floor-7": "./assets/floors/nk-7.svg",
+    "floor-8": "./assets/floors/nk-8.svg",
+    "floor-9": "./assets/floors/nk-9.svg",
+    "floor-10": "./assets/floors/nk-10.svg",
+  },
 };
 const floorPlanAsset = FLOOR_PLAN_ASSETS[buildingId]?.[floor?.id] || "";
 const roomsByNumber = buildRoomsByNumber(rooms);

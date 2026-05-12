@@ -1,4 +1,4 @@
-import { buildingUrl, floorUrl, formatArea, formatNumber, getBuilding } from "./campus-data.js";
+import { floorUrl, formatArea, formatNumber, getBuilding } from "./campus-data.js";
 import {
   escapeHtml,
   getParsedBuildingData,
@@ -27,6 +27,7 @@ if (!building) {
 function renderPage() {
   const rooms = parsed?.rooms || [];
   const departments = new Set(rooms.map((room) => room.department).filter(Boolean));
+  const primaryFloor = parsed?.floors.find((item) => item.id === "floor-1") || parsed?.floors[0] || null;
 
   page.innerHTML = `
     <nav class="breadcrumbs">
@@ -42,7 +43,11 @@ function renderPage() {
       </div>
       <div class="topbar__actions">
         <a class="button" href="./index.html">← На карту</a>
-        ${building.id !== "gmk" ? `<a class="button" href="${buildingUrl("gmk")}">Открыть ГМК</a>` : ""}
+        ${
+          primaryFloor
+            ? `<a class="button" href="${floorUrl(building.id, primaryFloor.id)}">Открыть ${escapeHtml(primaryFloor.label.toLowerCase())}</a>`
+            : ""
+        }
       </div>
     </header>
 
