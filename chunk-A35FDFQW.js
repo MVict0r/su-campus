@@ -1,1 +1,0 @@
-import{j as e,t as n}from"./chunk-SAPCN2O7.js";var a=class i{activeBuildingId=n(null);setActiveBuilding(t){this.activeBuildingId.set(t)}static \u0275fac=function(o){return new(o||i)};static \u0275prov=e({token:i,factory:i.\u0275fac,providedIn:"root"})};export{a};
